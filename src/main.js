@@ -11,6 +11,7 @@ const csvWriter = createCsvWriter({
     header: [
         { id: 'platform', title: 'Platform' },
         { id: 'packageName', title: 'Package Name' },
+        { id: 'projectsUsing', title: 'Projects' },
         { id: 'clientVersion', title: 'Client Version' },
         { id: 'latestVersion', title: 'Latest Stable Version' },
         { id: 'isNMinusOne', title: 'Is on N-1 version' },
@@ -23,7 +24,7 @@ const csvWriter = createCsvWriter({
     ]
 });
 
-// Delay function to enforce 2-second intervals between API calls
+// Delay function to enforce x amount of time between API calls
 function delay(duration) {
     return new Promise(resolve => setTimeout(resolve, duration));
 }
@@ -63,6 +64,7 @@ async function processPackage(packageDetail) {
         const packageName = packageDetail.package_name;
         const clientVersion = packageDetail.package_version;
         const platform = packageDetail.package_platform;
+        const projectsUsing = packageDetail.projects_using;
 
         console.log(`Processing ${packageName} on platform ${platform}`);
 
@@ -74,12 +76,11 @@ async function processPackage(packageDetail) {
         }
 
         // Retrieving versions with details
-        console.log("Calling vewrsions")
         const versionsData = await VersionLogic.getVersionsWithDetails(versionList.releases, false, 3);
-        console.log(`Versions for ${packageName}:`, versionsData);
         const record = {
             platform,
             packageName,
+            projectsUsing,
             clientVersion,
             latestVersion: versionsData.latest,
             nMinusOne: versionsData.previousVersions[0] || '',

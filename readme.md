@@ -8,6 +8,7 @@ This application checks the package versions for a given set of software package
 The CSV file will include the following columns:
 - `Platform` 
 - `Package Name`
+- `Projects`
 - `Client Version`
 - `Latest Stable Version`
 - `Is on N-1 version`
