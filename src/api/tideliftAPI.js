@@ -55,10 +55,8 @@ const TideliftService = {
     },
 
     async checkReleases(platform, packageName) {
-        console.log("Making Releases api call")
         const encodedPackageName = encodeURIComponent(packageName);
         const apiUrl = `https://api.tidelift.com/external-api/v1/packages/${platform}/${encodedPackageName}`;
-        console.log(apiUrl)
         try {
             const response = await http.get(apiUrl, {
                 headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` }
@@ -76,7 +74,6 @@ const TideliftService = {
     },
     
     async checkViolations(platform, packageName, version) {
-        console.log("Making violations api call")
         const apiUrl = `https://api.tidelift.com/external-api/v1/packages/${platform}/${encodeURIComponent(packageName)}/releases/${version}`;
         try {
             const response = await http.get(apiUrl, {
@@ -84,10 +81,25 @@ const TideliftService = {
                     'Authorization': `Bearer ${AUTH_TOKEN}`
                 }
             });
-            response.data.violations ? console.log(response.data.violations) : console.log("none")
             return response.data.violations;
         } catch (error) {
             console.error('Error checking vulnerabilities:', error.response.status);
+            throw error;
+        }
+    },
+    async getReccomendations(cve) {
+        console.log(cve)
+        const apiUrl = `https://api.tidelift.com/external-api/v1/vulnerabilities/${cve}`;
+        try {
+            const response = await http.get(apiUrl, {
+                headers: {
+                    'Authorization': `Bearer ${AUTH_TOKEN}`
+                }
+            });
+            const rec = response.data.affected_packages;
+            return rec;     
+        } catch (error) {
+            console.error('Error getting Recommenbdatiosn for CVE:', error.response.status);
             throw error;
         }
     }

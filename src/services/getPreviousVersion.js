@@ -13,6 +13,10 @@ const VersionLogic = {
             latest,
             previousVersions
         };
+    },
+    getMajorVersion(version) {
+        const [major] = version.split('.');
+        return major;
     }
 };
 module.exports = VersionLogic;
