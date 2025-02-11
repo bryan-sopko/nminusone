@@ -5,7 +5,12 @@ const VersionLogic = require('./services/getPreviousVersion');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const path = require('path');
 const fs = require('fs');
+const { readCsv, readJson } = require('./services/fileReader');
+const { mergeData } = require('./services/dataProcessor');
+const { writeCsv } = require('./services/fileWriter');
 
+console.log(readCsv, readJson);
+console.time('executionTime')
 const csvWriter = createCsvWriter({
     path: path.resolve(__dirname, 'output', 'output.csv'),
     header: [
@@ -18,14 +23,17 @@ const csvWriter = createCsvWriter({
         { id: 'nMinusOne', title: 'N-1 Version' },
         { id: 'nMinus1DiffMajor', title: 'N-1 Same Major?' },
         { id: 'nMinus1Vul', title: 'N-1 Vulnerabilities' },
+        { id: 'nMinus1Sev', title: 'N-1 CVE Severity' },
         { id: 'nMinus1Rec', title: 'Recommendation' },
         { id: 'nMinusTwo', title: 'N-2 Version' },
         { id: 'nMinus2DiffMajor', title: 'N-2 Same Major?' },
         { id: 'nMinus2Vul', title: 'N-2 Vulnerabilities' },
+        { id: 'nMinus2Sev', title: 'N-2 CVE Severity' },
         { id: 'nMinus2Rec', title: 'Recommendation' },
         { id: 'nMinusThree', title: 'N-3 Version' },
         { id: 'nMinus3DiffMajor', title: 'N-3 Same Major?' },
         { id: 'nMinus3Vul', title: 'N-3 Vulnerabilities' },
+        { id: 'nMinus3Sev', title: 'N-3 CVE Severity' },
         { id: 'nMinus3Rec', title: 'Recommendation' },
     ]
 });
@@ -34,15 +42,29 @@ const csvWriter = createCsvWriter({
 function delay(duration) {
     return new Promise(resolve => setTimeout(resolve, duration));
 }
+async function combineReports(){
+    try {
+        const csvData = await readCsv('./output/output.csv');
+        const jsonData = await readJson('./output/apv.json');
+        const mergedData = mergeData(csvData, jsonData);
+        writeCsv(mergedData, './output/mergedOutput.csv');
+        console.log('Data has been merged and written successfully.');
+    } catch (error) {
+        console.error('An error occurred:', error);
+    }
 
+}
 async function processReports() {
+    
     try {
         const usageReport = await TideliftService.generateUsageReport();
         const completedReportId = await waitForReportCompletion(usageReport.report_id);
+        const apvReport = await TideliftService.generateApvReport();
         const reportDetails = await TideliftService.fetchReport(completedReportId);
         const records = [];
-        const limitedReportDetails = reportDetails.report.slice(0, 47);
-        
+        const limitedReportDetails = reportDetails.report;
+        const packageCount = limitedReportDetails.length
+        var count = 1
         for (const packageDetail of limitedReportDetails) {
             await delay(500);  // Wait for half a second before each call
             try{
@@ -51,6 +73,8 @@ async function processReports() {
             } catch(error){
                 console.error("Error processing package")
             }
+            console.log("Packages complete: " + count + "/" + packageCount)
+            count = count+1
         }
 
         const outputDir = path.resolve(__dirname, 'output');
@@ -59,6 +83,8 @@ async function processReports() {
         }
         await csvWriter.writeRecords(records);  // Write the records to the CSV file
         console.log('CSV file has been written successfully.');
+        console.timeEnd('executionTime')
+        combineReports();
     } catch (error) {
         console.error('Failed to process reports:', error);
     }
@@ -70,8 +96,9 @@ async function processPackage(packageDetail) {
         const clientVersion = packageDetail.package_version;
         const platform = packageDetail.package_platform;
         const projectsUsing = packageDetail.projects_using;
+        var severity;
 
-        console.log(`Processing ${packageName} on platform ${platform}`);
+        //console.log(`Processing ${packageName} on platform ${platform}`);
 
         // Fetching version list
         const versionList = await TideliftService.checkReleases(platform, packageName);
@@ -114,11 +141,12 @@ async function processPackage(packageDetail) {
                 })
                 
             } 
+            const violationDesc = violations.length > 0 ? violations.map(v => `${v.title} - Standard: ${v.catalog_standard}`).join('; ') : 'No violations';
             if(cveId != null){
                 const cvePkg = await TideliftService.getReccomendations(cveId) 
+                severity = parseSeverity(violations) 
                 for(const pkg of cvePkg){
-                    //console.log(pkg)
-                    console.log(`return ${pkg.name} = ${packageName} AND ${platform} = ${pkg.platform}`)
+                   
                     if(pkg.name === packageName && pkg.platform == platform){
                         rec = pkg.recommendation + ' to ' + pkg.unaffected_versions
                         console.log(rec)
@@ -126,8 +154,10 @@ async function processPackage(packageDetail) {
                 }
                 
             }
-            const violationDesc = violations.length > 0 ? violations.map(v => `${v.title} - Standard: ${v.catalog_standard}`).join('; ') : 'No violations';
+
+          
             record[`nMinus${i + 1}Vul`] = violationDesc;
+            record[`nMinus${i + 1}Sev`] = severity;
             record[`nMinus${i + 1}Rec`] = rec;
             record[`nMinus${i + 1}DiffMajor`] = isDiff
         }
@@ -137,6 +167,13 @@ async function processPackage(packageDetail) {
         return null;
     }
 }
-
+function parseSeverity(violations) {
+    return violations
+        .map(violation => {
+            const match = violation.title.match(/severity (\d+\.\d+) is present/);
+            return match ? match[1] : null;
+        })
+        .join('; ');  // Combine multiple severities with semicolon if necessary
+}
 
 processReports();

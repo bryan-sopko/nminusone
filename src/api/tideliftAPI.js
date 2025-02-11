@@ -23,6 +23,23 @@ const TideliftService = {
             throw error;
         }
     },
+    async generateApvReport() {
+        const config = {
+            method: 'post',
+            url: `${API_BASE_URL}/reports/all_projects_violations/generate?catalog_name=default`,
+            headers: {
+                'Authorization': `Bearer ${AUTH_TOKEN}`,
+                'Content-Type': 'application/json'
+            }
+        };
+        try {
+            const response = await http.request(config);
+            return response.data;
+        } catch (error) {
+            logAxiosError(error);
+            throw error;
+        }
+    },
 
     async getReportStatus(reportId) {
         const config = {
